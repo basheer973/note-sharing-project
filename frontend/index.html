@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notes Sharing Portal</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #fffde7; /* light yellow shade */
+      margin: 0;
+      padding: 0;
+      text-align: center;
+    }
+    .container {
+      max-width: 700px;
+      margin: 40px auto;
+      background: #fff9c4; /* soft light yellow */
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    h2 { margin-bottom: 20px; color: #fbc02d; } /* deep yellow */
+    button, input {
+      width: 90%;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 8px;
+      border: 1px solid #fbc02d;
+      font-size: 16px;
+    }
+    button {
+      background: #fbc02d; /* yellow */
+      color: black;
+      border: none;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    button:hover { background: #fdd835; } /* slightly brighter yellow */
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-top: 20px;
+    }
+    .card {
+      padding: 15px;
+      background: #ffeb3b; /* card bright yellow */
+      color: black;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .card:hover {
+      transform: scale(1.05);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    .hidden { display: none; }
+    .back-btn {
+      width: auto;
+      padding: 8px 16px;
+      margin-top: 20px;
+      background: #fbc02d;
+      color: black;
+    }
+    ul { list-style: none; padding: 0; }
+    li { margin: 5px 0; }
+    a { text-decoration: none; color: #f57f17; margin-right: 10px; }
+    small { display: block; margin-top: 15px; cursor: pointer; color: #f57f17; }
+
+    /* Fullscreen Welcome Slide */
+    #welcomeSlide {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100vh;
+      background: linear-gradient(135deg, #fdd835, #f57f17); /* updated warm gradient */
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+    #welcomeSlide h2 {
+      font-size: 2rem;
+      color: white;
+      margin-bottom: 20px;
+    }
+    #welcomeSlide p {
+      font-size: 1.2rem;
+      color: #fffde7;
+      margin-bottom: 30px;
+    }
+    #welcomeSlide button {
+      width: auto;
+      padding: 12px 24px;
+      font-size: 18px;
+      border-radius: 8px;
+      border: none;
+      background: white;
+      color: #f57f17;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    #welcomeSlide button:hover {
+      background: #ffe082;
+    }
+  </style>
+</head>
+<body>
+
+<!-- New Fullscreen Welcome Slide -->
+<div id="welcomeSlide">
+  <h2>✨ Welcome to Notes Sharing Portal ✨</h2>
+  <p>Share and access study materials with ease.</p>
+  <button onclick="goToEntrance()">Continue →</button>
+</div>
+
+<!-- Entrance Page -->
+<div class="container hidden" id="entrancePage">
+  <h2>Welcome to Notes Sharing Portal</h2>
+  <button onclick="goToSemesters('student')">Enter</button>
+  <small onclick="goToFacultyLogin()">Faculty Login</small>
+</div>
+
+<!-- Faculty Login Page -->
+<div class="container hidden" id="facultyLoginPage">
+  <h2>Faculty Login</h2>
+  <input type="password" id="facultyCode" placeholder="Enter Faculty Code">
+  <button onclick="checkFacultyCode()">Login</button>
+  <button class="back-btn" onclick="backToEntrance()">← Back</button>
+</div>
+
+<!-- Semester Page -->
+<div class="container hidden" id="semesterPage">
+  <h2>Select Semester</h2>
+  <div class="grid" id="semesterGrid"></div>
+  <button class="back-btn" onclick="backToEntrance()">← Back</button>
+</div>
+
+<!-- Subjects Page -->
+<div class="container hidden" id="subjectsPage">
+  <h2 id="semesterTitle"></h2>
+  <div class="grid" id="subjectsGrid"></div>
+  <button class="back-btn" onclick="backToSemesters()">← Back</button>
+</div>
+
+<!-- Units Page -->
+<div class="container hidden" id="unitsPage">
+  <h2 id="subjectTitle"></h2>
+  <div class="grid" id="unitsGrid"></div>
+  <button class="back-btn" onclick="backToSubjects()">← Back</button>
+</div>
+
+<!-- Upload/Download Page -->
+<div class="container hidden" id="uploadPage">
+  <h2 id="unitTitle"></h2>
+  
+  <!-- Faculty controls -->
+  <div id="facultySection" class="hidden">
+    <input type="file" id="fileInput">
+    <button onclick="uploadFile()">Upload Notes</button>
+  </div>
+  
+  <h3>Available Notes:</h3>
+  <ul id="notesList"></ul>
+  <button class="back-btn" onclick="backToUnits()">← Back</button>
+</div>
+
+<script>
+  // 🔹 CONFIG — Change to your backend Render URL after deployment
+  const BACKEND = "http://localhost:5000";
+
+  let currentRole = "student";
+  let currentSemester = "";
+  let currentSubject = "";
+  let currentUnit = "";
+
+  const syllabus = {
+    "1-1": ["Engineering chemistry", "Programming in C", "BCME", "Mathematics-I", "English"],
+    "1-2": ["Engineering physics", "Data Structures", "Mathematics-II", "BEEE", "engineering graphics"],
+    "2-1": ["DL&CO", "Discrete Mathematics", "OOPs with Java", "UHV", "advanced datastructures"],
+    "2-2": ["Operating Systems", "DBMS", "Probability & Statistics", "", "software engineering"],
+    "3-1": ["FLAT","computer networks", "DWDM", "EDC", "OOAD"],
+    "3-2": ["Artificial Intelligence", "Cloud Computing", "Information Security", "Data Mining", "Open Elective-II"],
+    "4-1": ["Big Data Analytics", "IoT", "Deep Learning", "Professional Elective-I", "Open Elective-III"],
+    "4-2": ["Project Work", "Seminar", "Comprehensive Viva", "Professional Elective-II", "Open Elective-IV"]
+  };
+
+  // Welcome slide
+  function goToEntrance() {
+    document.getElementById("welcomeSlide").style.display = "none";
+    document.getElementById("entrancePage").classList.remove("hidden");
+  }
+
+  function goToFacultyLogin() {
+    document.getElementById("entrancePage").classList.add("hidden");
+    document.getElementById("facultyLoginPage").classList.remove("hidden");
+  }
+  function checkFacultyCode() {
+    let entered = document.getElementById("facultyCode").value.trim();
+    if (entered === "FAC123") {
+      currentRole = "faculty";
+      goToSemesters("faculty");
+    } else {
+      alert("Invalid Faculty Code!");
+    }
+  }
+  function goToSemesters(role) {
+    currentRole = role;
+    document.getElementById("entrancePage").classList.add("hidden");
+    document.getElementById("facultyLoginPage").classList.add("hidden");
+    document.getElementById("semesterPage").classList.remove("hidden");
+
+    let grid = document.getElementById("semesterGrid");
+    grid.innerHTML = "";
+    Object.keys(syllabus).forEach(sem => {
+      let div = document.createElement("div");
+      div.className = "card";
+      div.innerText = sem.replace("-", " - Semester ");
+      div.onclick = () => goToSubjects(sem);
+      grid.appendChild(div);
+    });
+  }
+
+  function goToSubjects(semester) {
+    currentSemester = semester;
+    document.getElementById("semesterPage").classList.add("hidden");
+    document.getElementById("subjectsPage").classList.remove("hidden");
+    document.getElementById("semesterTitle").innerText = "Subjects ("+semester+")";
+
+    let grid = document.getElementById("subjectsGrid");
+    grid.innerHTML = "";
+    syllabus[semester].forEach(sub => {
+      let div = document.createElement("div");
+      div.className = "card";
+      div.innerText = sub;
+      div.onclick = () => goToUnits(sub);
+      grid.appendChild(div);
+    });
+  }
+
+  function goToUnits(subject) {
+    currentSubject = subject;
+    document.getElementById("subjectsPage").classList.add("hidden");
+    document.getElementById("unitsPage").classList.remove("hidden");
+    document.getElementById("subjectTitle").innerText = subject;
+
+    let grid = document.getElementById("unitsGrid");
+    grid.innerHTML = "";
+    ["Unit-1","Unit-2","Unit-3","Unit-4","Unit-5","Syllabus"].forEach(unit => {
+      let div = document.createElement("div");
+      div.className = "card";
+      div.innerText = unit;
+      div.onclick = () => openUnit(unit);
+      grid.appendChild(div);
+    });
+  }
+
+  function openUnit(unit) {
+    currentUnit = unit;
+    document.getElementById("unitsPage").classList.add("hidden");
+    document.getElementById("uploadPage").classList.remove("hidden");
+    document.getElementById("unitTitle").innerText = currentSubject + " - " + unit;
+
+    if (currentRole === "faculty") {
+      document.getElementById("facultySection").classList.remove("hidden");
+    } else {
+      document.getElementById("facultySection").classList.add("hidden");
+    }
+    loadNotes();
+  }
+
+  // ======================
+  // 🔹 Backend Integration
+  // ======================
+  function uploadFile() {
+    let fileInput = document.getElementById("fileInput");
+    if (fileInput.files.length === 0) { alert("Please select a file!"); return; }
+    let file = fileInput.files[0];
+    let formData = new FormData();
+    formData.append("file", file);
+    formData.append("semester", currentSemester);
+    formData.append("subject", currentSubject);
+    formData.append("unit", currentUnit);
+    formData.append("uploaded_by", currentRole);
+
+    fetch(`${BACKEND}/api/upload`, { method: "POST", body: formData })
+      .then(res => { if (!res.ok) throw new Error("Upload failed"); return res.json(); })
+      .then(() => {
+        alert("Uploaded Successfully!");
+        fileInput.value = "";
+        loadNotes();
+      })
+      .catch(err => { console.error(err); alert("Upload failed: " + err.message); });
+  }
+
+  function loadNotes() {
+    fetch(`${BACKEND}/api/notes?semester=${encodeURIComponent(currentSemester)}&subject=${encodeURIComponent(currentSubject)}&unit=${encodeURIComponent(currentUnit)}`)
+      .then(res => res.json())
+      .then(notes => {
+        let list = document.getElementById("notesList");
+        list.innerHTML = "";
+        notes.forEach(note => {
+          let li = document.createElement("li");
+          li.innerHTML = `<a href="${note.file_url}" target="_blank" rel="noopener" download>${note.filename}</a>`;
+          if (currentRole === "faculty") {
+            li.innerHTML += ` <button onclick="deleteFile(${note.id})">Delete</button>`;
+          }
+          list.appendChild(li);
+        });
+      })
+      .catch(err => { console.error(err); });
+  }
+
+  function deleteFile(id) {
+    if (!confirm("Delete this file?")) return;
+    fetch(`${BACKEND}/api/notes/${id}`, { method: "DELETE" })
+      .then(res => { if (!res.ok) throw new Error("Delete failed"); return res.json(); })
+      .then(() => loadNotes())
+      .catch(err => { console.error(err); alert("Delete failed"); });
+  }
+
+  // ======================
+  // 🔹 Back navigation
+  // ======================
+  function backToEntrance() {
+    if (currentRole === "faculty") {
+      let confirmExit = confirm("Do you really want to exit? Your login will be cleared.");
+      if (!confirmExit) { return; }
+      currentRole = "student";
+      document.getElementById("facultyCode").value = "";
+    }
+    document.getElementById("semesterPage").classList.add("hidden");
+    document.getElementById("facultyLoginPage").classList.add("hidden");
+    document.getElementById("entrancePage").classList.remove("hidden");
+  }
+  function backToSemesters() {
+    document.getElementById("subjectsPage").classList.add("hidden");
+    document.getElementById("semesterPage").classList.remove("hidden");
+  }
+  function backToSubjects() {
+    document.getElementById("unitsPage").classList.add("hidden");
+    document.getElementById("subjectsPage").classList.remove("hidden");
+  }
+  function backToUnits() {
+    document.getElementById("uploadPage").classList.add("hidden");
+    document.getElementById("unitsPage").classList.remove("hidden");
+  }
+</script>
+
+</body>
+</html>
